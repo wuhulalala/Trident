@@ -28,6 +28,9 @@ NumericOperationFn: TypeAlias = Callable[[ir.Value, ir.Value], ir.Value]
 class _SkipBaseGuard(Exception): ...
 
 
+class _SkipStorageOffsetGuard(Exception): ...
+
+
 class ASTVisitor(ast.NodeVisitor):
     """Compose delayed IR builders from supported Dynamo guard AST nodes."""
 
@@ -359,6 +362,16 @@ class ASTVisitor(ast.NodeVisitor):
 
         return build
 
+    def _skip_storage_offset(self) -> GuardBuildFn:
+        def build(_: InputTable, __: ir.Context) -> ir.Value:
+            # Python Tensor arguments reach the packed TVM FFI function via
+            # DLPack. That boundary exposes the logical data pointer and
+            # canonicalizes byte_offset to zero, so the original PyTorch
+            # storage_offset is neither observable nor needed for addressing.
+            raise _SkipStorageOffsetGuard
+
+        return build
+
     @staticmethod
     def _to_ffi(value: ir.Value, context: ir.Context) -> ir.Value:
         ffi_types = {
@@ -408,9 +421,10 @@ class ASTVisitor(ast.NodeVisitor):
         source = Local.from_expression(node.func.value)
         if source is None:
             return None
+        if node.func.attr == "storage_offset":
+            return self._skip_storage_offset()
         operations = {
             "ndimension": torchext.tensor_dim,
-            "storage_offset": torchext.tensor_storage_offset,
         }
         operation = operations.get(node.func.attr)
         return self._build_tensor_metadata(source, operation) if operation else None
@@ -427,6 +441,8 @@ class ASTVisitor(ast.NodeVisitor):
                 return build_fn(tree, context)
             except _SkipBaseGuard:
                 return self._false(context)
+            except _SkipStorageOffsetGuard:
+                return self._true(context)
 
         return build
 

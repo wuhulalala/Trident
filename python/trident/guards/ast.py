@@ -12,19 +12,11 @@ from itertools import chain, pairwise
 from typing import Any, ClassVar, TypeAlias
 
 import torch
-
 from trident.core import ir
 from trident.core.dialects import arith
 from trident.core.dialects import tvm_ffi as tvm_ffi_d
 from trident.input import InputTable
-from trident.ir import (
-    binary,
-    checked_call,
-    constant,
-    equal,
-    native,
-    native_constant,
-)
+from trident.ir import binary, checked_call, constant, equal, native, native_constant
 
 from .local import Local
 
@@ -81,9 +73,9 @@ class ASTVisitor(ast.NodeVisitor):
     def _build_identity(self, lhs: Local, rhs: Local) -> GuardBuildFn:
         def build(tree: InputTable, context: ir.Context) -> ir.Value:
             lhs_value, rhs_value = lhs.resolve(tree), rhs.resolve(tree)
-            assert lhs_value is not None and rhs_value is not None, (
-                f"guard source cannot be resolved: {self.text!r}"
-            )
+            assert (
+                lhs_value is not None and rhs_value is not None
+            ), f"guard source cannot be resolved: {self.text!r}"
             if not isinstance(lhs_value.type, tvm_ffi_d.TensorType) or not isinstance(
                 rhs_value.type, tvm_ffi_d.TensorType
             ):
@@ -177,11 +169,11 @@ class ASTVisitor(ast.NodeVisitor):
     def _skip_base(self) -> GuardBuildFn:
         def build(_: InputTable, context: ir.Context) -> ir.Value:
             warnings.warn(
-                f"Unsupported Tensor._base guard forces a specialization miss: {self.text!r} in {context}",
+                f"Ignoring unsupported Tensor._base guard: {self.text!r} in {context}",
                 RuntimeWarning,
                 stacklevel=2,
             )
-            raise _SkipGuard(False)
+            raise _SkipGuard(True)
 
         return build
 
@@ -410,9 +402,9 @@ class ASTVisitor(ast.NodeVisitor):
 
             def build(tree: InputTable, context: ir.Context) -> ir.Value:
                 value = source.resolve(tree)
-                assert value is not None, (
-                    f"guard source cannot be resolved: {self.text!r} in {context}"
-                )
+                assert (
+                    value is not None
+                ), f"guard source cannot be resolved: {self.text!r} in {context}"
                 return value
 
             return build

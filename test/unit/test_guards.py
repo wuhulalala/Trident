@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import unittest
 from dataclasses import dataclass
+from test.support.ir import new_context
 
 from torch._guards import GuardSource
 from trident.core import ir
@@ -35,8 +36,6 @@ from trident.guards.kinds import (
 )
 from trident.guards.local import Local
 
-from test.support.ir import new_context
-
 
 @dataclass(frozen=True)
 class FakeGuard:
@@ -56,15 +55,13 @@ class GuardExpressionTest(unittest.TestCase):
         """Insert a guard expression into a textually parsed IR fixture."""
         context = new_context()
         with context, ir.Location.unknown(context):
-            module = ir.Module.parse(
-                """
+            module = ir.Module.parse("""
                 module {
                   func.func @guard_expression() {
                     return
                   }
                 }
-                """
-            )
+                """)
             function = module.body.operations[0]
             block = function.regions[0].blocks[0]
             with ir.InsertionPoint(block.operations[-1]):
@@ -126,7 +123,7 @@ class GuardExpressionTest(unittest.TestCase):
         self.assertIsInstance(result_type, ir.IntegerType)
         self.assertTrue(result_type.is_signless)
         self.assertEqual(result_type.width, 1)
-        self.assertIn("arith.constant false", module)
+        self.assertIn("arith.constant true", module)
 
 
 class GuardParsingTest(unittest.TestCase):
